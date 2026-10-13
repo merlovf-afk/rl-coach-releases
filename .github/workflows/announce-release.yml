@@ -33,8 +33,14 @@ jobs:
           list=$(printf '%s\n' "$NOTES" | tr -d '\r' | sed -e 's/^[[:space:]]*[-*•][[:space:]]*//' -e '/^[[:space:]]*$/d' | sed -e 's/^/• /' | head -c 3500)
           if [ -z "$list" ]; then list="• Fixes and small improvements"; fi
           ping=""; mentions='{"parse":[]}'
-          if printf '%s' "${ROLE:-}" | grep -Eq '^[0-9]+$'; then ping="<@&$ROLE> "; mentions=$(jq -n --arg r "$ROLE" '{parse:[],roles:[$r]}'); fi
-          jq -n --arg content "${ping}A new version is out." --arg title "Bullseye $version is out" --arg list "$list" \
+          # Version numbers: generation.feature.fix (the build number is not part of the tag).
+          # Only a feature release (third number 0) pings the role; a fix release posts quietly.
+          said="A fix release is out."
+          case "$version" in
+            *.*.0) said="A new version is out."
+                   if printf '%s' "${ROLE:-}" | grep -Eq '^[0-9]+$'; then ping="<@&$ROLE> "; mentions=$(jq -n --arg r "$ROLE" '{parse:[],roles:[$r]}'); fi ;;
+          esac
+          jq -n --arg content "${ping}${said}" --arg title "Bullseye $version is out" --arg list "$list" \
                 --arg dl "[$file]($url)" --arg latest "https://github.com/$REPO/releases/latest" --argjson mentions "$mentions" \
             '{content:$content, allowed_mentions:$mentions, embeds:[{title:$title, description:$list, color:14263361,
               fields:[{name:"Download", value:$dl, inline:true},{name:"Always the newest", value:$latest, inline:true}],
