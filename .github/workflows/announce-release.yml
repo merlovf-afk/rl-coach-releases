@@ -20,6 +20,7 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_UPDATES_WEBHOOK }}
           ROLE: ${{ secrets.DISCORD_TESTER_ROLE_ID }}
           TAG: ${{ github.event.release.tag_name }}
+          NAME: ${{ github.event.release.name }}
           NOTES: ${{ github.event.release.body }}
           REPO: ${{ github.repository }}
           ASSETS: ${{ toJson(github.event.release.assets) }}
@@ -27,6 +28,10 @@ jobs:
           set -eu
           if [ -z "${WEBHOOK:-}" ]; then echo "No webhook is set; nothing posted."; exit 0; fi
           version="${TAG#v}"
+          # The label people read has four numbers (1.3.5.1): the release is named "Bullseye 1.3.5.1".
+          # The tag keeps three, because that is what installed copies compare.
+          shown="$version"
+          if printf '%s' "${NAME:-}" | grep -Eq '^Bullseye [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then shown="${NAME#Bullseye }"; fi
           url=$(printf '%s' "$ASSETS" | jq -r '[.[] | select(.name | endswith(".exe"))][0].browser_download_url // empty')
           if [ -z "$url" ]; then url="https://github.com/$REPO/releases/tag/$TAG"; fi
           file=$(basename "$url")
@@ -40,7 +45,7 @@ jobs:
             *.*.0) said="A new version is out."
                    if printf '%s' "${ROLE:-}" | grep -Eq '^[0-9]+$'; then ping="<@&$ROLE> "; mentions=$(jq -n --arg r "$ROLE" '{parse:[],roles:[$r]}'); fi ;;
           esac
-          jq -n --arg content "${ping}${said}" --arg title "Bullseye $version is out" --arg list "$list" \
+          jq -n --arg content "${ping}${said}" --arg title "Bullseye $shown is out" --arg list "$list" \
                 --arg dl "[$file]($url)" --arg latest "https://github.com/$REPO/releases/latest" --argjson mentions "$mentions" \
             '{content:$content, allowed_mentions:$mentions, embeds:[{title:$title, description:$list, color:14263361,
               fields:[{name:"Download", value:$dl, inline:true},{name:"Always the newest", value:$latest, inline:true}],
