@@ -1,0 +1,44 @@
+name: Announce a release in Discord
+
+# When a version (a tag that starts with "v") is published here, one post goes to the
+# Bullseye Discord. The webhook address and the role to ping are repository secrets.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  announce:
+    if: startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease && !github.event.release.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post in Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_UPDATES_WEBHOOK }}
+          ROLE: ${{ secrets.DISCORD_TESTER_ROLE_ID }}
+          TAG: ${{ github.event.release.tag_name }}
+          NOTES: ${{ github.event.release.body }}
+          REPO: ${{ github.repository }}
+          ASSETS: ${{ toJson(github.event.release.assets) }}
+        run: |
+          set -eu
+          if [ -z "${WEBHOOK:-}" ]; then echo "No webhook is set; nothing posted."; exit 0; fi
+          version="${TAG#v}"
+          url=$(printf '%s' "$ASSETS" | jq -r '[.[] | select(.name | endswith(".exe"))][0].browser_download_url // empty')
+          if [ -z "$url" ]; then url="https://github.com/$REPO/releases/tag/$TAG"; fi
+          file=$(basename "$url")
+          list=$(printf '%s\n' "$NOTES" | tr -d '\r' | sed -e 's/^[[:space:]]*[-*•][[:space:]]*//' -e '/^[[:space:]]*$/d' | sed -e 's/^/• /' | head -c 3500)
+          if [ -z "$list" ]; then list="• Fixes and small improvements"; fi
+          ping=""; mentions='{"parse":[]}'
+          if printf '%s' "${ROLE:-}" | grep -Eq '^[0-9]+$'; then ping="<@&$ROLE> "; mentions=$(jq -n --arg r "$ROLE" '{parse:[],roles:[$r]}'); fi
+          jq -n --arg content "${ping}A new version is out." --arg title "Bullseye $version is out" --arg list "$list" \
+                --arg dl "[$file]($url)" --arg latest "https://github.com/$REPO/releases/latest" --argjson mentions "$mentions" \
+            '{content:$content, allowed_mentions:$mentions, embeds:[{title:$title, description:$list, color:14263361,
+              fields:[{name:"Download", value:$dl, inline:true},{name:"Always the newest", value:$latest, inline:true}],
+              footer:{text:"Already installed? Bullseye updates itself when you close it."}}]}' > body.json
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d @body.json "$WEBHOOK")
+          echo "Discord answered $code"
+          case "$code" in 2*) ;; *) exit 1 ;; esac
