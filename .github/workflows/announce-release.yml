@@ -35,8 +35,10 @@ jobs:
           url=$(printf '%s' "$ASSETS" | jq -r '[.[] | select(.name | endswith(".exe"))][0].browser_download_url // empty')
           if [ -z "$url" ]; then url="https://github.com/$REPO/releases/tag/$TAG"; fi
           file=$(basename "$url")
-          list=$(printf '%s\n' "$NOTES" | tr -d '\r' | sed -e 's/^[[:space:]]*[-*•][[:space:]]*//' -e '/^[[:space:]]*$/d' | sed -e 's/^/• /' | head -c 3500)
+          list=$(printf '%s\n' "$NOTES" | tr -d '\r' | sed -e '/^## How to update/,$d' | sed -e 's/^[[:space:]]*[-*•][[:space:]]*//' -e '/^[[:space:]]*$/d' | sed -e 's/^/• /' | head -c 3500)
           if [ -z "$list" ]; then list="• Fixes and small improvements"; fi
+          how=$(printf '%s\n' "$NOTES" | tr -d '\r' | sed -n '/^## How to update/,$p' | sed -e '1d' | head -c 1000)
+          if [ -z "$how" ]; then how="Bullseye downloads it by itself. When it says the new version is ready, close Bullseye with the X and open it again."; fi
           ping=""; mentions='{"parse":[]}'
           # Version numbers: generation.feature.fix (the build number is not part of the tag).
           # Only a feature release (third number 0) pings the role; a fix release posts quietly.
@@ -46,10 +48,10 @@ jobs:
                    if printf '%s' "${ROLE:-}" | grep -Eq '^[0-9]+$'; then ping="<@&$ROLE> "; mentions=$(jq -n --arg r "$ROLE" '{parse:[],roles:[$r]}'); fi ;;
           esac
           jq -n --arg content "${ping}${said}" --arg title "Bullseye $shown is out" --arg list "$list" \
-                --arg dl "[$file]($url)" --arg latest "https://github.com/$REPO/releases/latest" --argjson mentions "$mentions" \
+                --arg how "$how" --arg dl "[$file]($url)" --arg latest "https://github.com/$REPO/releases/latest" --argjson mentions "$mentions" \
             '{content:$content, allowed_mentions:$mentions, embeds:[{title:$title, description:$list, color:14263361,
-              fields:[{name:"Download", value:$dl, inline:true},{name:"Always the newest", value:$latest, inline:true}],
-              footer:{text:"Already installed? Bullseye updates itself when you close it."}}]}' > body.json
+              fields:[{name:"Download", value:$dl, inline:true},{name:"Always the newest", value:$latest, inline:true},
+                      {name:"How to update", value:$how, inline:false}]}]}' > body.json
           code=$(curl -sS -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d @body.json "$WEBHOOK")
           echo "Discord answered $code"
           case "$code" in 2*) ;; *) exit 1 ;; esac
