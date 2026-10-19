@@ -5,7 +5,7 @@ This page holds the installer and the update files, nothing else.
 
 ## Install
 
-1. Download **RLCoachApp-win-Setup.exe** from the [latest release](../../releases/latest).
+1. Open the [latest release](../../releases/latest) and download the setup file under Assets. It is called **Bullseye-Setup-** followed by the version number, ending in .exe.
 2. Run it. Windows shows "Windows protected your PC", because the installer is not signed yet. Click **More info**, then **Run anyway**.
 3. The app opens, finds your Rocket League replay folder by itself and starts reading your saved replays. The first time takes a few minutes.
 
